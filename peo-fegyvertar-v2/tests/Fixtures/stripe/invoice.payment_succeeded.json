@@ -1,0 +1,32 @@
+{
+  "id": "evt_test_phase_b_smoke_001",
+  "object": "event",
+  "api_version": "2024-04-10",
+  "created": 1712836800,
+  "type": "invoice.payment_succeeded",
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_test_phase_b_smoke",
+    "idempotency_key": null
+  },
+  "data": {
+    "object": {
+      "id": "in_test_phase_b_smoke_0001",
+      "object": "invoice",
+      "account_country": "HU",
+      "amount_due": 500000,
+      "amount_paid": 500000,
+      "amount_remaining": 0,
+      "currency": "huf",
+      "customer": "cus_test_phase_b_smoke",
+      "customer_email": "phaseb-smoke@example.test",
+      "customer_name": "Phase B Smoke",
+      "livemode": false,
+      "paid": true,
+      "status": "paid",
+      "subscription": "sub_test_phase_b_smoke",
+      "total": 500000
+    }
+  }
+}

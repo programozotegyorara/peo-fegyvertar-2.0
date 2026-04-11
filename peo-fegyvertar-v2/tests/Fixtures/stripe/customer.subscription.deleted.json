@@ -1,0 +1,28 @@
+{
+  "id": "evt_test_phase_c3_subdel_001",
+  "object": "event",
+  "api_version": "2024-04-10",
+  "created": 1712836800,
+  "type": "customer.subscription.deleted",
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_test_phase_c3_subdel",
+    "idempotency_key": null
+  },
+  "data": {
+    "object": {
+      "id": "sub_test_phase_c3_cancel_001",
+      "object": "subscription",
+      "customer": "cus_test_phase_c3_cancel",
+      "customer_email": "phasec3-cancel@example.test",
+      "status": "canceled",
+      "canceled_at": 1712836800,
+      "ended_at": 1712836800,
+      "livemode": false,
+      "metadata": {
+        "customer_email": "phasec3-cancel@example.test"
+      }
+    }
+  }
+}
