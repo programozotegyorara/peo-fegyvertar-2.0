@@ -370,6 +370,7 @@ final class Kernel
             $container->get(ConfigRestRoutes::class)->register();
             $container->get(TemplateRestRoutes::class)->register();
             $container->get(TriggerRestRoutes::class)->register();
+            $container->get(\Peoft\Admin\Rest\CronTriggerRoutes::class)->register();
         });
 
         // Phase D: admin UI bindings.
@@ -398,6 +399,9 @@ final class Kernel
                 registry: $c->get(\Peoft\Orchestrator\Handlers\TaskRegistry::class),
                 envEnum:  $env,
             );
+        });
+        $container->bind(\Peoft\Admin\Rest\CronTriggerRoutes::class, static function (Container $c): \Peoft\Admin\Rest\CronTriggerRoutes {
+            return new \Peoft\Admin\Rest\CronTriggerRoutes($c);
         });
         $container->bind(TasksInboxPage::class, static function (Container $c) use ($env): TasksInboxPage {
             return new TasksInboxPage($c, $env);
