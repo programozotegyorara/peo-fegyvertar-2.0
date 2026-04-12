@@ -93,7 +93,7 @@ final class DwhStatusPage extends AdminPage
         }
         echo '</tbody></table>';
 
-        echo '<p class="peoft-meta" style="margin-top:16px;"><em>Actions (Trigger rebuild, Abort current) ship in Phase E together with the extractor/runner classes.</em></p>';
+        echo '<p class="peoft-meta" style="margin-top:16px;"><em>Műveletek (Újraépítés indítása, Futó folyamat leállítása) egy későbbi verzióban érkeznek.</em></p>';
     }
 
     private static function truncate(string $s, int $max): string
