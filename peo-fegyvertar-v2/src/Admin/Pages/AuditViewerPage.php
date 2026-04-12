@@ -29,12 +29,12 @@ final class AuditViewerPage extends AdminPage
 
     public function title(): string
     {
-        return 'Audit Log';
+        return 'Tevékenységnapló';
     }
 
     public function menuTitle(): string
     {
-        return 'Audit Log';
+        return 'Tevékenységnapló';
     }
 
     protected function renderBody(): void
@@ -92,7 +92,7 @@ final class AuditViewerPage extends AdminPage
         $this->renderFilters($action, $actor, $taskId, $requestId, $search, $wpdb, $table);
 
         if ($rows === []) {
-            echo '<div class="peoft-empty">No audit rows match the current filters.</div>';
+            echo '<div class="peoft-empty">Nincs találat a megadott szűrőkkel.</div>';
             return;
         }
 
@@ -106,8 +106,8 @@ final class AuditViewerPage extends AdminPage
         echo '<form method="get" class="peoft-filters">';
         echo '<input type="hidden" name="page" value="' . esc_attr(self::slug()) . '">';
 
-        echo '<label>Action: <select name="action_filter">';
-        echo '<option value="">(all)</option>';
+        echo '<label>Művelet: <select name="action_filter">';
+        echo '<option value="">(mind)</option>';
         foreach ($distinctActions as $a) {
             $a = (string) $a;
             $sel = $a === $action ? ' selected' : '';
@@ -115,19 +115,19 @@ final class AuditViewerPage extends AdminPage
         }
         echo '</select></label>';
 
-        echo '<label>Actor: <input type="text" name="actor" value="' . esc_attr($actor) . '" placeholder="stripe / worker / admin:42" size="18"></label>';
-        echo '<label>Task id: <input type="number" name="task_id" value="' . ($taskId > 0 ? (int) $taskId : '') . '" size="6"></label>';
-        echo '<label>Request id: <input type="text" name="request_id" value="' . esc_attr($requestId) . '" placeholder="ULID" size="22"></label>';
-        echo '<label>Search: <input type="text" name="q" value="' . esc_attr($search) . '" placeholder="subject_id / api_url" size="24"></label>';
-        echo '<button type="submit" class="button">Filter</button>';
-        echo ' <a class="button-link" href="' . $this->adminUrl(self::slug()) . '">Reset</a>';
+        echo '<label>Szereplő: <input type="text" name="actor" value="' . esc_attr($actor) . '" placeholder="stripe / worker / admin:42" size="18"></label>';
+        echo '<label>Feladat #: <input type="number" name="task_id" value="' . ($taskId > 0 ? (int) $taskId : '') . '" size="6"></label>';
+        echo '<label>Kérés id: <input type="text" name="request_id" value="' . esc_attr($requestId) . '" placeholder="ULID" size="22"></label>';
+        echo '<label>Keresés: <input type="text" name="q" value="' . esc_attr($search) . '" placeholder="subject_id / api_url" size="24"></label>';
+        echo '<button type="submit" class="button">Szűrés</button>';
+        echo ' <a class="button-link" href="' . $this->adminUrl(self::slug()) . '">Alaphelyzet</a>';
         echo '</form>';
     }
 
     private function renderTable(array $rows): void
     {
         echo '<table class="peoft-list"><thead><tr>';
-        echo '<th>#</th><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Subject</th><th>API</th><th>Request id</th><th></th>';
+        echo '<th>#</th><th>Időpont (UTC)</th><th>Szereplő</th><th>Művelet</th><th>Tárgy</th><th>API</th><th>Kérés id</th><th></th>';
         echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $id = (int) $row['id'];

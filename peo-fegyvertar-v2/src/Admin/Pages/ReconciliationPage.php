@@ -34,12 +34,12 @@ final class ReconciliationPage extends AdminPage
 
     public function title(): string
     {
-        return 'Reconciliation';
+        return 'Egyeztetés';
     }
 
     public function menuTitle(): string
     {
-        return 'Reconciliation';
+        return 'Egyeztetés';
     }
 
     protected function renderBody(): void

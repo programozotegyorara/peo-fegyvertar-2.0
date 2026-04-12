@@ -36,12 +36,12 @@ final class ConfigEditorPage extends AdminPage
 
     public function title(): string
     {
-        return 'Config Editor';
+        return 'Beállítások';
     }
 
     public function menuTitle(): string
     {
-        return 'Config Editor';
+        return 'Beállítások';
     }
 
     protected function renderBody(): void
@@ -64,19 +64,19 @@ final class ConfigEditorPage extends AdminPage
 
         $envFileOverrides = $this->detectEnvFileOverrides();
 
-        echo '<p class="peoft-meta">Env: <code>' . esc_html($this->env->value) . '</code> &middot; ' . count($rows) . ' config keys stored in <code>peoft_config</code>';
+        echo '<p class="peoft-meta">Környezet: <code>' . esc_html($this->env->value) . '</code> &middot; ' . count($rows) . ' konfigurációs kulcs a <code>peoft_config</code> táblában';
         if ($envFileOverrides !== []) {
-            echo ' &middot; <strong>' . count($envFileOverrides) . '</strong> key(s) overridden by <code>/wp-content/peoft-env.php</code>';
+            echo ' &middot; <strong>' . count($envFileOverrides) . '</strong> kulcs felülírva a <code>/wp-content/peoft-env.php</code> fájlból';
         }
         echo '</p>';
 
         if ($rows === []) {
-            echo '<div class="peoft-empty">No config keys yet. Run <code>wp peoft import:from-legacy-db</code> to seed from 1.0.</div>';
+            echo '<div class="peoft-empty">Még nincsenek konfigurációs kulcsok. Futtasd: <code>wp peoft import:from-legacy-db</code></div>';
             return;
         }
 
         echo '<table class="peoft-list"><thead><tr>';
-        echo '<th>Key</th><th>Value</th><th>Updated</th><th>By</th><th>Actions</th>';
+        echo '<th>Kulcs</th><th>Érték</th><th>Módosítva</th><th>Ki által</th><th>Műveletek</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($rows as $row) {
@@ -90,10 +90,10 @@ final class ConfigEditorPage extends AdminPage
             echo '<tr data-config-key="' . esc_attr($key) . '">';
             echo '<td><code>' . esc_html($key) . '</code>';
             if ($isSecret) {
-                echo ' <span class="peoft-status peoft-status-dead" style="background:#991b1b;">SECRET</span>';
+                echo ' <span class="peoft-status peoft-status-dead" style="background:#991b1b;">TITKOS</span>';
             }
             if ($isOverridden) {
-                echo ' <span class="peoft-status peoft-status-running">FILE OVERRIDE</span>';
+                echo ' <span class="peoft-status peoft-status-running">FÁJL FELÜLÍRÁS</span>';
             }
             echo '</td>';
 
@@ -110,11 +110,11 @@ final class ConfigEditorPage extends AdminPage
 
             echo '<td class="peoft-row-actions" style="white-space:nowrap;">';
             if ($isOverridden) {
-                echo '<span class="peoft-meta">(file-managed)</span>';
+                echo '<span class="peoft-meta">(fájlból kezelt)</span>';
             } elseif ($isSecret) {
-                echo '<button type="button" class="peoft-config-reveal" data-key="' . esc_attr($key) . '">Reveal</button>';
+                echo '<button type="button" class="peoft-config-reveal" data-key="' . esc_attr($key) . '">Megjelenítés</button>';
             } else {
-                echo '<button type="button" class="peoft-config-edit" data-key="' . esc_attr($key) . '" data-value="' . esc_attr($value) . '">Edit</button>';
+                echo '<button type="button" class="peoft-config-edit" data-key="' . esc_attr($key) . '" data-value="' . esc_attr($value) . '">Szerkesztés</button>';
             }
             echo '</td>';
             echo '</tr>';
@@ -175,7 +175,7 @@ final class ConfigEditorPage extends AdminPage
         btn.addEventListener('click', async () => {
             const key = btn.dataset.key;
             const current = btn.dataset.value || '';
-            const updated = prompt('New value for ' + key + ':', current);
+            const updated = prompt('Új érték a(z) ' + key + ' kulcshoz:', current);
             if (updated === null || updated === current) return;
             btn.disabled = true;
             try {
@@ -186,7 +186,7 @@ final class ConfigEditorPage extends AdminPage
                 });
                 const body = await res.json();
                 if (!res.ok) {
-                    alert('Save failed: ' + (body.detail || body.error || res.status));
+                    alert('Mentés sikertelen: ' + (body.detail || body.error || res.status));
                     btn.disabled = false;
                     return;
                 }
@@ -201,7 +201,7 @@ final class ConfigEditorPage extends AdminPage
     document.querySelectorAll('.peoft-config-reveal').forEach(btn => {
         btn.addEventListener('click', async () => {
             const key = btn.dataset.key;
-            const pwd = prompt('Re-enter your WordPress password to reveal ' + key + ':');
+            const pwd = prompt('Írd be a WordPress jelszavad a(z) ' + key + ' megtekintéséhez:');
             if (!pwd) return;
             btn.disabled = true;
             btn.textContent = '…';
@@ -213,18 +213,18 @@ final class ConfigEditorPage extends AdminPage
                 });
                 const body = await res.json();
                 if (!res.ok) {
-                    alert('Reveal failed: ' + (body.error || res.status));
+                    alert('Megjelenítés sikertelen: ' + (body.error || res.status));
                     btn.disabled = false;
-                    btn.textContent = 'Reveal';
+                    btn.textContent = 'Megjelenítés';
                     return;
                 }
                 showRevealModal(key, body.config_value || '');
                 btn.disabled = false;
-                btn.textContent = 'Reveal';
+                btn.textContent = 'Megjelenítés';
             } catch (e) {
                 alert('Network error: ' + e.message);
                 btn.disabled = false;
-                btn.textContent = 'Reveal';
+                btn.textContent = 'Megjelenítés';
             }
         });
     });
@@ -242,7 +242,7 @@ final class ConfigEditorPage extends AdminPage
 
         const heading = document.createElement('h3');
         heading.setAttribute('style', 'margin:0 0 10px;color:#dc2626;');
-        heading.textContent = 'Revealed: ' + key;
+        heading.textContent = 'Megjelenítve: ' + key;
         modal.appendChild(heading);
 
         const pre = document.createElement('pre');
@@ -256,13 +256,13 @@ final class ConfigEditorPage extends AdminPage
         const note = document.createElement('p');
         note.className = 'peoft-meta';
         note.setAttribute('style', 'margin:8px 0 0;color:#6b7280;');
-        note.textContent = 'This window will auto-close in 30s. The reveal was audited.';
+        note.textContent = 'Ez az ablak 30 másodperc múlva automatikusan bezárul. A megtekintés naplózva lett.';
         modal.appendChild(note);
 
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.setAttribute('style', 'margin-top:10px;');
-        closeBtn.textContent = 'Close';
+        closeBtn.textContent = 'Bezárás';
         closeBtn.addEventListener('click', () => modal.remove());
         modal.appendChild(closeBtn);
 

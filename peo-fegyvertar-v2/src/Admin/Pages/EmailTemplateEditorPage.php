@@ -33,12 +33,12 @@ final class EmailTemplateEditorPage extends AdminPage
 
     public function title(): string
     {
-        return 'Email Templates';
+        return 'E-mail sablonok';
     }
 
     public function menuTitle(): string
     {
-        return 'Email Templates';
+        return 'E-mail sablonok';
     }
 
     protected function renderBody(): void
@@ -69,15 +69,15 @@ final class EmailTemplateEditorPage extends AdminPage
             ARRAY_A
         ) ?: [];
 
-        echo '<p class="peoft-meta">Env: <code>' . esc_html($this->env->value) . '</code> &middot; ' . count($rows) . ' templates stored in <code>peoft_email_templates</code></p>';
+        echo '<p class="peoft-meta">Környezet: <code>' . esc_html($this->env->value) . '</code> &middot; ' . count($rows) . ' sablon a <code>peoft_email_templates</code> táblában</p>';
 
         if ($rows === []) {
-            echo '<div class="peoft-empty">No templates. Run <code>wp peoft import:from-legacy-db --what=all</code> to seed from 1.0.</div>';
+            echo '<div class="peoft-empty">Még nincsenek sablonok. Futtasd: <code>wp peoft import:from-legacy-db --what=all</code></div>';
             return;
         }
 
         echo '<table class="peoft-list"><thead><tr>';
-        echo '<th>Slug</th><th>Subject</th><th>Body</th><th>Variables</th><th>Updated</th><th></th>';
+        echo '<th>Azonosító</th><th>Tárgy</th><th>Törzs</th><th>Változók</th><th>Módosítva</th><th></th>';
         echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $slug = (string) $row['slug'];
@@ -92,10 +92,10 @@ final class EmailTemplateEditorPage extends AdminPage
             echo '<tr>';
             echo '<td><code>' . esc_html($slug) . '</code></td>';
             echo '<td>' . esc_html(self::truncate($subject, 60)) . '</td>';
-            echo '<td class="peoft-meta">' . number_format($bodyLen) . ' chars</td>';
-            echo '<td class="peoft-meta">' . $varCount . ' declared</td>';
-            echo '<td class="peoft-meta">' . esc_html($updatedAt) . '<br>by ' . esc_html($updatedBy) . '</td>';
-            echo '<td><a class="button" href="' . $editUrl . '">Edit</a></td>';
+            echo '<td class="peoft-meta">' . number_format($bodyLen) . ' karakter</td>';
+            echo '<td class="peoft-meta">' . $varCount . ' deklarált</td>';
+            echo '<td class="peoft-meta">' . esc_html($updatedAt) . '<br>' . esc_html($updatedBy) . '</td>';
+            echo '<td><a class="button" href="' . $editUrl . '">Szerkesztés</a></td>';
             echo '</tr>';
         }
         echo '</tbody></table>';

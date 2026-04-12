@@ -33,12 +33,12 @@ final class TasksInboxPage extends AdminPage
 
     public function title(): string
     {
-        return 'Tasks Inbox';
+        return 'Feladatok';
     }
 
     public function menuTitle(): string
     {
-        return 'Tasks Inbox';
+        return 'Feladatok';
     }
 
     protected function renderBody(): void
@@ -89,7 +89,7 @@ final class TasksInboxPage extends AdminPage
         $this->renderFilters($statusFilter, $typeFilter, $refFilter, $countMap);
 
         if ($rows === []) {
-            echo '<div class="peoft-empty">No tasks match the current filters.</div>';
+            echo '<div class="peoft-empty">Nincs találat a megadott szűrőkkel.</div>';
             return;
         }
 
@@ -108,7 +108,7 @@ final class TasksInboxPage extends AdminPage
             const id = btn.dataset.taskId;
             const op = btn.dataset.op;
             const label = btn.dataset.confirm || op;
-            if (!confirm('Confirm: ' + label + ' task #' + id + '?')) return;
+            if (!confirm('Megerősítés: ' + label + ' feladat #' + id + '?')) return;
             btn.disabled = true;
             btn.textContent = '…';
             try {
@@ -118,14 +118,14 @@ final class TasksInboxPage extends AdminPage
                 });
                 const body = await res.json();
                 if (!res.ok) {
-                    alert('Failed: ' + (body.error || res.status));
+                    alert('Hiba: ' + (body.error || res.status));
                     btn.disabled = false;
                     btn.textContent = op;
                     return;
                 }
                 location.reload();
             } catch (e) {
-                alert('Network error: ' + e.message);
+                alert('Hálózati hiba: ' + e.message);
                 btn.disabled = false;
                 btn.textContent = op;
             }
@@ -148,20 +148,20 @@ HTML;
         echo '<form method="get" class="peoft-filters">';
         echo '<input type="hidden" name="page" value="' . esc_attr(self::slug()) . '">';
 
-        echo '<label>Status: <select name="status">';
-        echo '<option value="">(all)</option>';
+        echo '<label>Állapot: <select name="status">';
+        echo '<option value="">(mind)</option>';
         foreach (['pending', 'running', 'done', 'failed', 'dead'] as $opt) {
             echo '<option value="' . esc_attr($opt) . '"' . $selected($opt, $status) . '>' . esc_html($opt) . '</option>';
         }
         echo '</select></label>';
 
-        echo '<label>Task type: <input type="text" name="task_type" value="' . esc_attr($type) . '" placeholder="e.g. szamlazz.issue_invoice" size="28"></label>';
-        echo '<label>Stripe ref: <input type="text" name="stripe_ref" value="' . esc_attr($ref) . '" placeholder="in_... / ch_... / cus_..." size="28"></label>';
-        echo '<button type="submit" class="button">Filter</button>';
-        echo ' <a class="button-link" href="' . $this->adminUrl(self::slug()) . '">Reset</a>';
+        echo '<label>Feladat típus: <input type="text" name="task_type" value="' . esc_attr($type) . '" placeholder="pl. szamlazz.issue_invoice" size="28"></label>';
+        echo '<label>Stripe hiv.: <input type="text" name="stripe_ref" value="' . esc_attr($ref) . '" placeholder="in_... / ch_... / cus_..." size="28"></label>';
+        echo '<button type="submit" class="button">Szűrés</button>';
+        echo ' <a class="button-link" href="' . $this->adminUrl(self::slug()) . '">Alaphelyzet</a>';
 
         echo '<span class="peoft-meta" style="margin-left:auto;">';
-        echo 'Totals: <strong>' . $done . '</strong> done · <strong>' . $pending . '</strong> pending · <strong>' . $running . '</strong> running · <strong style="color:#991b1b;">' . $dead . '</strong> dead';
+        echo 'Összesen: <strong>' . $done . '</strong> kész · <strong>' . $pending . '</strong> várakozik · <strong>' . $running . '</strong> fut · <strong style="color:#991b1b;">' . $dead . '</strong> meghalt';
         echo '</span>';
         echo '</form>';
     }
@@ -169,7 +169,7 @@ HTML;
     private function renderTable(array $rows): void
     {
         echo '<table class="peoft-list"><thead><tr>';
-        echo '<th>#</th><th>Task type</th><th>Status</th><th>Stripe ref</th><th>Attempts</th><th>Next run / Finished</th><th>Last error</th><th>Actions</th>';
+        echo '<th>#</th><th>Típus</th><th>Állapot</th><th>Stripe hiv.</th><th>Próba</th><th>Következő / Befejezve</th><th>Utolsó hiba</th><th>Műveletek</th>';
         echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $id         = (int) $row['id'];
@@ -181,7 +181,7 @@ HTML;
             $nextRun    = (string) ($row['next_run_at'] ?? '');
             $finished   = (string) ($row['finished_at'] ?? '');
             $lastError  = (string) ($row['last_error'] ?? '');
-            $timeDisplay = $finished !== '' ? 'finished ' . $finished : 'next ' . $nextRun;
+            $timeDisplay = $finished !== '' ? 'befejezve ' . $finished : 'következő ' . $nextRun;
 
             echo '<tr>';
             echo '<td>' . $id . '</td>';
@@ -192,11 +192,11 @@ HTML;
             echo '<td class="peoft-meta">' . esc_html($timeDisplay) . '</td>';
             echo '<td class="peoft-meta" style="max-width:280px;">' . esc_html(self::truncate($lastError, 140)) . '</td>';
             echo '<td class="peoft-row-actions" style="white-space:nowrap;">';
-            echo $this->actionButton($id, 'retry',   'Retry');
-            echo $this->actionButton($id, 'skip',    'Skip');
-            echo $this->actionButton($id, 'cancel',  'Cancel');
-            echo $this->actionButton($id, 'run-now', 'Run now');
-            echo ' <a class="button-link" href="' . $this->adminUrl('peo-fegyvertar-audit', ['task_id' => $id]) . '">Audit</a>';
+            echo $this->actionButton($id, 'retry',   'Újra');
+            echo $this->actionButton($id, 'skip',    'Kihagyás');
+            echo $this->actionButton($id, 'cancel',  'Törlés');
+            echo $this->actionButton($id, 'run-now', 'Futtatás');
+            echo ' <a class="button-link" href="' . $this->adminUrl('peo-fegyvertar-audit', ['task_id' => $id]) . '">Napló</a>';
             echo '</td>';
             echo '</tr>';
         }

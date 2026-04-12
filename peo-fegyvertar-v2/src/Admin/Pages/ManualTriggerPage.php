@@ -30,12 +30,12 @@ final class ManualTriggerPage extends AdminPage
 
     public function title(): string
     {
-        return 'Manual Trigger';
+        return 'Kézi indítás';
     }
 
     public function menuTitle(): string
     {
-        return 'Manual Trigger';
+        return 'Kézi indítás';
     }
 
     /**

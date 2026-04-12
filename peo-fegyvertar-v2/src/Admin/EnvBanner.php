@@ -29,7 +29,7 @@ final class EnvBanner
         // removed by the operator after a successful import.
         if (defined('PEOFT_IMPORT_MODE') && constant('PEOFT_IMPORT_MODE')) {
             echo '<div style="background:#7f1d1d;color:#fff;padding:12px 16px;margin:0 -20px 0 -20px;font-size:14px;font-weight:bold;border-bottom:3px solid #dc2626;">';
-            echo '&#9888; IMPORT MODE IS ACTIVE &mdash; remove <code style="color:#fca5a5;">define(\'PEOFT_IMPORT_MODE\', true);</code> from <code style="color:#fca5a5;">wp-config.php</code> when done.';
+            echo '&#9888; IMPORT MÓD AKTÍV &mdash; az importálás befejezése után távolítsd el a <code style="color:#fca5a5;">define(\'PEOFT_IMPORT_MODE\', true);</code> sort a <code style="color:#fca5a5;">wp-config.php</code> fájlból.';
             echo '</div>';
         }
 
@@ -39,14 +39,14 @@ final class EnvBanner
             : null;
         if ($cutoverDate !== null) {
             echo '<div style="background:#1e3a5f;color:#93c5fd;padding:6px 16px;margin:0 -20px 0 -20px;font-size:12px;border-bottom:1px solid #2563eb;">';
-            echo 'Cutover date: <strong>' . esc_html((string) $cutoverDate) . '</strong> &mdash; records before this date are labeled "Legacy (pre-cutover)" in admin views.';
+            echo 'Átállás dátuma: <strong>' . esc_html((string) $cutoverDate) . '</strong> &mdash; az ennél régebbi rekordok "Korábbi verzió" címkével jelennek meg.';
             echo '</div>';
         }
 
         [$color, $label, $detail] = match ($env) {
-            Env::Dev  => ['#2563eb', 'DEV',  'LOCAL — test credentials, mock downstreams. Safe to break.'],
-            Env::Uat  => ['#ea580c', 'UAT',  'Staging — test credentials, real downstream accounts where provisioned.'],
-            Env::Prod => ['#dc2626', 'PROD', 'LIVE — changes affect real customers, real Stripe charges, real Hungarian tax invoices.'],
+            Env::Dev  => ['#2563eb', 'FEJLESZTŐI',  'Helyi környezet — teszt hitelesítő adatok, mock szolgáltatások. Szabadon tesztelhetsz.'],
+            Env::Uat  => ['#ea580c', 'TESZT',  'Staging környezet — teszt hitelesítő adatok, valós szolgáltatások ahol be van állítva.'],
+            Env::Prod => ['#dc2626', 'ÉLŐ',   'Éles környezet — a változtatások valós ügyfeleket, Stripe terheléseket és NAV-számlákat érintenek.'],
         };
 
         $labelEsc = esc_html($label);

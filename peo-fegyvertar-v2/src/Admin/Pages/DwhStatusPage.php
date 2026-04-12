@@ -28,12 +28,12 @@ final class DwhStatusPage extends AdminPage
 
     public function title(): string
     {
-        return 'DWH Status';
+        return 'DWH állapot';
     }
 
     public function menuTitle(): string
     {
-        return 'DWH Status';
+        return 'DWH állapot';
     }
 
     protected function renderBody(): void
@@ -53,14 +53,14 @@ final class DwhStatusPage extends AdminPage
 
         if ($rows === []) {
             echo '<div class="peoft-empty">';
-            echo '<p>No DWH runs recorded yet.</p>';
-            echo '<p class="peoft-meta">Phase E implements <code>wp peoft dwh:rebuild</code> and wires it to a nightly system cron. Until then, this page is informational only.</p>';
+            echo '<p>Még nem történt DWH futtatás.</p>';
+            echo '<p class="peoft-meta">A <code>wp peoft dwh:rebuild</code> parancs éjszakánként fut. Az első futtatás után itt láthatod az eredményt.</p>';
             echo '</div>';
             return;
         }
 
         echo '<table class="peoft-list"><thead><tr>';
-        echo '<th>#</th><th>Started</th><th>Ended</th><th>Duration</th><th>Status</th><th>Stats</th><th>Error</th>';
+        echo '<th>#</th><th>Indulás</th><th>Befejezés</th><th>Időtartam</th><th>Állapot</th><th>Statisztika</th><th>Hiba</th>';
         echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $id = (int) $row['id'];
