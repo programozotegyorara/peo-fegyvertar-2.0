@@ -6,6 +6,8 @@ namespace Peoft\Orchestrator\Handlers;
 
 use Peoft\Integrations\Mailer\Mailer;
 use Peoft\Integrations\Mailer\TemplateRepository;
+use Peoft\Integrations\Stripe\CustomerBundle;
+use Peoft\Integrations\Stripe\CustomerContextLoader;
 use Peoft\Orchestrator\Queue\Task;
 use Peoft\Orchestrator\Worker\PoisonException;
 
@@ -44,6 +46,7 @@ final class SendTransactionalEmailHandler implements TaskHandler
     public function __construct(
         private readonly Mailer $mailer,
         private readonly TemplateRepository $templates,
+        private readonly CustomerContextLoader $customers,
     ) {}
 
     public static function type(): string
@@ -59,6 +62,7 @@ final class SendTransactionalEmailHandler implements TaskHandler
         $to   = (string) ($payload['to'] ?? '');
         $replyTo = isset($payload['reply_to']) ? (string) $payload['reply_to'] : null;
         $providedVars = is_array($payload['vars'] ?? null) ? $payload['vars'] : [];
+        $stripeCustomerId = isset($payload['stripe_customer_id']) ? (string) $payload['stripe_customer_id'] : '';
 
         if ($slug === '') {
             throw new PoisonException(
@@ -76,27 +80,76 @@ final class SendTransactionalEmailHandler implements TaskHandler
             throw new PoisonException("Template '{$slug}' not found in peoft_email_templates");
         }
 
-        // Fill every declared variable. Known values come from the payload;
-        // unknowns default to empty string so the renderer's strict validation
-        // passes. Phase C4/C5 will populate more fields from Számlázz + Stripe.
+        // Phase C5 enrichment: if the payload has a Stripe customer id,
+        // try to fetch the full customer bundle and merge its fields into
+        // the vars map. Failures (customer deleted, network error, mock
+        // returning null) are non-fatal — we fall back to whatever the
+        // payload already provided.
+        $enrichedVars = $providedVars;
+        if ($stripeCustomerId !== '') {
+            $bundle = $this->customers->loadOrNull($stripeCustomerId);
+            if ($bundle !== null) {
+                $enrichedVars = $this->mergeBundleIntoVars($enrichedVars, $bundle);
+            }
+        }
+
+        // Fill every declared variable. Known values come from the payload
+        // (possibly enriched via Stripe); unknowns default to empty string
+        // so the renderer's strict validation passes.
         $fullVars = [];
         foreach ($template->declared as $name) {
-            $fullVars[$name] = array_key_exists($name, $providedVars)
-                ? $providedVars[$name]
+            $fullVars[$name] = array_key_exists($name, $enrichedVars)
+                ? $enrichedVars[$name]
                 : '';
         }
 
         return new TaskContext(
             task: $task,
             data: [
-                'template_slug' => $slug,
-                'to'            => $to,
-                'reply_to'      => $replyTo,
-                'vars'          => $fullVars,
+                'template_slug'  => $slug,
+                'to'             => $to,
+                'reply_to'       => $replyTo,
+                'vars'           => $fullVars,
                 'declared_count' => count($template->declared),
                 'provided_count' => count($providedVars),
+                'enriched'       => $stripeCustomerId !== '' && $enrichedVars !== $providedVars,
             ],
         );
+    }
+
+    /**
+     * Maps CustomerBundle fields onto the template-variable slots that
+     * sikeres_rendeles (and other transactional templates) expect.
+     * Non-exhaustive — fills in ~10 of the 21 declared vars. Handler callers
+     * (via the router's payload.vars) can still override any field.
+     *
+     * @param array<string,mixed> $vars
+     * @return array<string,mixed>
+     */
+    private function mergeBundleIntoVars(array $vars, CustomerBundle $bundle): array
+    {
+        // Address block
+        $vars['address']     ??= trim($bundle->address->line1 . ' ' . $bundle->address->line2);
+        $vars['city']        ??= $bundle->address->city;
+        $vars['country']     ??= $bundle->address->country;
+        $vars['postal_code'] ??= $bundle->address->postalCode;
+
+        // Card details (sikeres_rendeles, uj_bankkartya_hozzaadva, card-expiring)
+        if ($bundle->defaultCard !== null) {
+            $vars['display_brand'] ??= $bundle->defaultCard->displayBrand();
+            $vars['last4']         ??= $bundle->defaultCard->last4;
+            $vars['exp_month']     ??= (string) $bundle->defaultCard->expMonth;
+            $vars['exp_year']      ??= (string) $bundle->defaultCard->expYear;
+        }
+
+        // Customer-facing fields
+        $vars['customer_email'] ??= $bundle->email;
+        // customer_profile_link: prefer the already-provided value. Future
+        // enhancement will generate a Stripe Billing Portal link via
+        // StripeClient::createBillingPortalSession.
+        $vars['customer_profile_link'] ??= $bundle->customerPortalUrl ?? '';
+
+        return $vars;
     }
 
     public function guard(TaskContext $context): bool

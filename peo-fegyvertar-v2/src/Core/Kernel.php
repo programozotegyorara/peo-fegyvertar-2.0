@@ -4,6 +4,18 @@ declare(strict_types=1);
 
 namespace Peoft\Core;
 
+use Peoft\Admin\AdminMenu;
+use Peoft\Admin\Pages\AuditViewerPage;
+use Peoft\Admin\Pages\ConfigEditorPage;
+use Peoft\Admin\Pages\DwhStatusPage;
+use Peoft\Admin\Pages\EmailTemplateEditorPage;
+use Peoft\Admin\Pages\ManualTriggerPage;
+use Peoft\Admin\Pages\ReconciliationPage;
+use Peoft\Admin\Pages\TasksInboxPage;
+use Peoft\Admin\Rest\ConfigRestRoutes;
+use Peoft\Admin\Rest\TasksRestRoutes;
+use Peoft\Admin\Rest\TemplateRestRoutes;
+use Peoft\Admin\Rest\TriggerRestRoutes;
 use Peoft\Audit\AuditLog;
 use Peoft\Audit\AuditRepository;
 use Peoft\Cli\CliBootstrap;
@@ -11,6 +23,7 @@ use Peoft\Core\Config\Config;
 use Peoft\Core\Config\ConfigLoader;
 use Peoft\Core\Config\ConfigRepository;
 use Peoft\Core\Db\Connection;
+use Peoft\Core\Db\CounterRepository;
 use Peoft\Core\Db\Migrator;
 use Peoft\Integrations\ActiveCampaign\ActiveCampaignClient;
 use Peoft\Integrations\ActiveCampaign\ActiveCampaignClientLive;
@@ -19,20 +32,36 @@ use Peoft\Integrations\ActiveCampaign\TagResolver;
 use Peoft\Integrations\Circle\CircleClient;
 use Peoft\Integrations\Circle\CircleClientLive;
 use Peoft\Integrations\Circle\CircleClientMock;
+use Peoft\Integrations\Szamlazz\InvoiceBuilder;
+use Peoft\Integrations\Szamlazz\PdfStore;
+use Peoft\Integrations\Szamlazz\SzamlazzClient;
+use Peoft\Integrations\Szamlazz\SzamlazzClientLive;
+use Peoft\Integrations\Szamlazz\SzamlazzClientMock;
+use Peoft\Integrations\Szamlazz\VatResolver;
+use Peoft\Integrations\Szamlazz\XrefRepository;
 use Peoft\Integrations\Mailer\Mailer;
 use Peoft\Integrations\Mailer\MailerLive;
 use Peoft\Integrations\Mailer\MailerMock;
 use Peoft\Integrations\Mailer\SmtpConfig;
 use Peoft\Integrations\Mailer\TemplateRenderer;
 use Peoft\Integrations\Mailer\TemplateRepository;
+use Peoft\Integrations\Stripe\CustomerContextLoader;
+use Peoft\Integrations\Stripe\StripeClient;
+use Peoft\Integrations\Stripe\StripeClientLive;
+use Peoft\Integrations\Stripe\StripeClientMock;
 use Peoft\Integrations\Stripe\StripeWebhookVerifier;
+use Stripe\StripeClient as StripeSdkClient;
 use Peoft\Orchestrator\Handlers\EnrollCircleMemberHandler;
+use Peoft\Orchestrator\Handlers\IssueStornoInvoiceHandler;
+use Peoft\Orchestrator\Handlers\IssueSzamlazzInvoiceHandler;
 use Peoft\Orchestrator\Handlers\NoopLogOnlyHandler;
 use Peoft\Orchestrator\Handlers\RevokeCircleMemberHandler;
 use Peoft\Orchestrator\Handlers\SendTransactionalEmailHandler;
 use Peoft\Orchestrator\Handlers\TagActiveCampaignContactHandler;
 use Peoft\Orchestrator\Handlers\TaskRegistry;
+use Peoft\Orchestrator\Handlers\TrialConvertToSubscriptionHandler;
 use Peoft\Orchestrator\Handlers\UntagActiveCampaignContactHandler;
+use Peoft\Orchestrator\Handlers\UpdateStripeCustomerVatHandler;
 use Peoft\Orchestrator\Handlers\UpsertActiveCampaignContactHandler;
 use Peoft\Orchestrator\Http\WebhookController;
 use Peoft\Orchestrator\Queue\TaskEnqueuer;
@@ -189,14 +218,67 @@ final class Kernel
             );
         });
 
+        // Phase C4: Számlázz.
+        $container->bind(VatResolver::class, static fn () => new VatResolver());
+        $container->bind(InvoiceBuilder::class, static function (Container $c): InvoiceBuilder {
+            return new InvoiceBuilder($c->get(VatResolver::class));
+        });
+        $container->bind(PdfStore::class, static function (): PdfStore {
+            // `wp-content/peoft-private/invoices/` — OUTSIDE `uploads/` so
+            // Apache doesn't serve PDFs by direct URL. Phase D adds an
+            // authenticated admin download endpoint.
+            return new PdfStore(
+                basePath: WP_CONTENT_DIR . '/peoft-private/invoices',
+            );
+        });
+        $container->bind(XrefRepository::class, static function (Container $c) use ($env): XrefRepository {
+            return new XrefRepository($c->get(Connection::class), $env);
+        });
+        $container->bind(CounterRepository::class, static function (Container $c) use ($env): CounterRepository {
+            return new CounterRepository($c->get(Connection::class), $env);
+        });
+        $container->bind(SzamlazzClient::class, static function (Container $c): SzamlazzClient {
+            $mode = Config::for('szamlazz')->mode();
+            // Phase C4: both 'mock' and 'demo' resolve to Mock. Real
+            // demo-endpoint testing via SzamlaAgent's $testMode flag is a
+            // Phase G follow-up when we have a demo account provisioned.
+            if ($mode === 'mock' || $mode === 'demo') {
+                return new SzamlazzClientMock();
+            }
+            return new SzamlazzClientLive(
+                apiKey: (string) Config::for('szamlazz')->get('api_key', ''),
+                builder: $c->get(InvoiceBuilder::class),
+                pdfStore: $c->get(PdfStore::class),
+            );
+        });
+
+        // Phase C5: Stripe (read-side).
+        $container->bind(StripeClient::class, static function (): StripeClient {
+            $mode = Config::for('stripe')->mode();
+            if ($mode === 'mock') {
+                return new StripeClientMock();
+            }
+            $secretKey = (string) Config::for('stripe')->get('secret_key', '');
+            if ($secretKey === '') {
+                // No key configured — fall back to mock so we never
+                // silently hit the wrong Stripe account.
+                return new StripeClientMock();
+            }
+            return new StripeClientLive(new StripeSdkClient($secretKey));
+        });
+        $container->bind(CustomerContextLoader::class, static function (Container $c): CustomerContextLoader {
+            return new CustomerContextLoader($c->get(StripeClient::class));
+        });
+
         $container->bind(TaskRegistry::class, static function (Container $c): TaskRegistry {
             $registry = new TaskRegistry();
             // Placeholder for events that don't yet have real handlers.
             $registry->register(new NoopLogOnlyHandler());
-            // Phase C1: real email handler.
+            // Phase C1 + C5: real email handler with Stripe customer enrichment.
             $registry->register(new SendTransactionalEmailHandler(
                 $c->get(Mailer::class),
                 $c->get(TemplateRepository::class),
+                $c->get(CustomerContextLoader::class),
             ));
             // Phase C2: ActiveCampaign handlers.
             $ac = $c->get(ActiveCampaignClient::class);
@@ -207,7 +289,26 @@ final class Kernel
             $circle = $c->get(CircleClient::class);
             $registry->register(new EnrollCircleMemberHandler($circle));
             $registry->register(new RevokeCircleMemberHandler($circle));
-            // Phase C4 will register Számlázz; C5 Stripe.
+            // Phase C4: Számlázz handlers.
+            $szamlazz = $c->get(SzamlazzClient::class);
+            $xref = $c->get(XrefRepository::class);
+            $registry->register(new IssueSzamlazzInvoiceHandler(
+                client: $szamlazz,
+                xref: $xref,
+                counters: $c->get(CounterRepository::class),
+                invoicePrefix: (string) Config::for('szamlazz')->get('prefix', 'FEGY'),
+            ));
+            $registry->register(new IssueStornoInvoiceHandler(
+                client: $szamlazz,
+                xref: $xref,
+            ));
+            // Phase C5: Stripe read-side handlers.
+            $registry->register(new UpdateStripeCustomerVatHandler(
+                $c->get(CustomerContextLoader::class),
+            ));
+            $registry->register(new TrialConvertToSubscriptionHandler(
+                $c->get(StripeClient::class),
+            ));
             return $registry;
         });
         $container->bind(Dispatcher::class, static function (Container $c): Dispatcher {
@@ -232,10 +333,78 @@ final class Kernel
             );
         });
 
-        // Register the Stripe webhook REST route on rest_api_init.
+        // Register the Stripe webhook REST route + admin mutation routes
+        // on rest_api_init.
         add_action('rest_api_init', static function () use ($container): void {
             $container->get(WebhookController::class)->registerRoute();
+            $container->get(TasksRestRoutes::class)->register();
+            $container->get(ConfigRestRoutes::class)->register();
+            $container->get(TemplateRestRoutes::class)->register();
+            $container->get(TriggerRestRoutes::class)->register();
         });
+
+        // Phase D: admin UI bindings.
+        $container->bind(TasksRestRoutes::class, static function (Container $c): TasksRestRoutes {
+            return new TasksRestRoutes(
+                tasks: $c->get(\Peoft\Orchestrator\Queue\TaskRepository::class),
+                worker: $c->get(\Peoft\Orchestrator\Worker\Worker::class),
+            );
+        });
+        $container->bind(ConfigRestRoutes::class, static function (Container $c): ConfigRestRoutes {
+            return new ConfigRestRoutes(
+                repo: $c->get(ConfigRepository::class),
+                db:   $c->get(Connection::class),
+            );
+        });
+        $container->bind(TemplateRestRoutes::class, static function (Container $c) use ($env): TemplateRestRoutes {
+            return new TemplateRestRoutes(
+                db:        $c->get(Connection::class),
+                envEnum:   $env,
+                templates: $c->get(\Peoft\Integrations\Mailer\TemplateRepository::class),
+            );
+        });
+        $container->bind(TriggerRestRoutes::class, static function (Container $c) use ($env): TriggerRestRoutes {
+            return new TriggerRestRoutes(
+                enqueuer: $c->get(\Peoft\Orchestrator\Queue\TaskEnqueuer::class),
+                registry: $c->get(\Peoft\Orchestrator\Handlers\TaskRegistry::class),
+                envEnum:  $env,
+            );
+        });
+        $container->bind(TasksInboxPage::class, static function (Container $c) use ($env): TasksInboxPage {
+            return new TasksInboxPage($c, $env);
+        });
+        $container->bind(AuditViewerPage::class, static function (Container $c) use ($env): AuditViewerPage {
+            return new AuditViewerPage($c, $env);
+        });
+        $container->bind(ReconciliationPage::class, static function (Container $c) use ($env): ReconciliationPage {
+            return new ReconciliationPage($c, $env);
+        });
+        $container->bind(ManualTriggerPage::class, static function (Container $c) use ($env): ManualTriggerPage {
+            return new ManualTriggerPage($c, $env);
+        });
+        $container->bind(ConfigEditorPage::class, static function (Container $c) use ($env): ConfigEditorPage {
+            return new ConfigEditorPage($c, $env);
+        });
+        $container->bind(EmailTemplateEditorPage::class, static function (Container $c) use ($env): EmailTemplateEditorPage {
+            return new EmailTemplateEditorPage($c, $env);
+        });
+        $container->bind(DwhStatusPage::class, static function (Container $c) use ($env): DwhStatusPage {
+            return new DwhStatusPage($c, $env);
+        });
+
+        // Register admin menu + pages. Order determines menu display order
+        // and which page the top-level slug opens.
+        if (is_admin()) {
+            $menu = new AdminMenu($container);
+            $menu->register(TasksInboxPage::class);         // lands on the top-level slug
+            $menu->register(ReconciliationPage::class);
+            $menu->register(AuditViewerPage::class);
+            $menu->register(ManualTriggerPage::class);
+            $menu->register(ConfigEditorPage::class);
+            $menu->register(EmailTemplateEditorPage::class);
+            $menu->register(DwhStatusPage::class);
+            $menu->hook();
+        }
 
         self::$container = $container;
         self::$booted = true;

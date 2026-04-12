@@ -1,0 +1,29 @@
+{
+  "id": "evt_test_phase_c5_taxid_001",
+  "object": "event",
+  "api_version": "2024-04-10",
+  "created": 1712836800,
+  "type": "customer.tax_id.updated",
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_test_phase_c5_taxid",
+    "idempotency_key": null
+  },
+  "data": {
+    "object": {
+      "id": "txi_test_phase_c5_001",
+      "object": "tax_id",
+      "country": "HU",
+      "customer": "cus_test_phase_b_smoke",
+      "type": "hu_tin",
+      "value": "HU12345678",
+      "verification": {
+        "status": "verified",
+        "verified_address": null,
+        "verified_name": null
+      },
+      "livemode": false
+    }
+  }
+}

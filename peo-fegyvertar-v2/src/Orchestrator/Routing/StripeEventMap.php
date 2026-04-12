@@ -33,13 +33,16 @@ final class StripeEventMap
     {
         return [
             'invoice.payment_succeeded' => self::invoicePaymentSucceeded(),
-            // Phase C4/C5 replace the remaining noops with real fan-outs.
+            // Remaining noops (invoice.payment_failed, customer.subscription.updated,
+            // customer.updated, payment_method.attached) get real fan-outs in
+            // a follow-up — not critical for the core subscription flow.
             'invoice.payment_failed'    => self::noop('invoice.payment_failed', 'in_'),
-            'charge.refunded'           => self::noop('charge.refunded', 'ch_'),
+            'charge.refunded'           => self::chargeRefunded(),
             'customer.subscription.deleted' => self::customerSubscriptionDeleted(),
             'customer.subscription.updated' => self::noop('customer.subscription.updated', 'sub_'),
-            'checkout.session.completed'    => self::noop('checkout.session.completed', 'cs_'),
-            'customer.tax_id.updated'       => self::noop('customer.tax_id.updated', 'cus_'),
+            'checkout.session.completed'    => self::checkoutSessionCompleted(),
+            'customer.tax_id.updated'       => self::customerTaxIdUpdated(),
+            'customer.tax_id.created'       => self::customerTaxIdUpdated(),
             'customer.updated'              => self::noop('customer.updated', 'cus_'),
             'payment_method.attached'       => self::noop('payment_method.attached', 'pm_'),
         ];
@@ -79,7 +82,10 @@ final class StripeEventMap
                 return $tasks;
             }
 
-            // C1: confirmation email
+            // C1 + C5: confirmation email. `stripe_customer_id` triggers the
+            // SendTransactionalEmailHandler's CustomerContextLoader enrichment
+            // at dispatch time, filling address/card/name vars from Stripe.
+            $stripeCustomerId = is_object($inv) && isset($inv->customer) ? (string) $inv->customer : '';
             $tasks[] = new TaskSpec(
                 taskType:       'email.send_success_purchase',
                 idempotencyKey: IdempotencyKey::for(
@@ -89,19 +95,20 @@ final class StripeEventMap
                 ),
                 stripeRef:      $invoiceId,
                 payload:        [
-                    'template_slug' => 'sikeres_rendeles',
-                    'to'            => $customerEmail,
-                    'reply_to'      => null,
-                    'vars'          => [
+                    'template_slug'      => 'sikeres_rendeles',
+                    'to'                 => $customerEmail,
+                    'reply_to'           => null,
+                    'stripe_customer_id' => $stripeCustomerId,
+                    'vars'               => [
                         'customer_email' => $customerEmail,
                         'order_id'       => $invoiceId,
                         'total_amount'   => $totalAmountDisplay,
                         'email_subject'  => 'Fegyvertár - Sikeres rendelés',
                         'this_year'      => (string) gmdate('Y'),
-                        // The remaining ~15 declared vars are filled as
-                        // later sub-phases (C4 Számlázz, C5 Stripe customer
-                        // bundle) come online. Until then the handler
-                        // substitutes empty strings for undefined declared vars.
+                        // Remaining ~15 declared vars are filled by C5's
+                        // CustomerContextLoader enrichment in the handler
+                        // (address/card/name from Stripe) and by the xref
+                        // lookup for invoice_number.
                     ],
                 ],
                 sourceEventId:  $event->id,
@@ -171,9 +178,92 @@ final class StripeEventMap
                 );
             }
 
-            // C4 will add szamlazz.issue_invoice here.
+            // C4: Számlázz invoice. Buyer address comes from the Stripe
+            // invoice's customer_address sub-object; vat_id from customer_tax_ids
+            // if present. Net amount is computed by the handler from gross.
+            $address = (is_object($inv) && isset($inv->customer_address) && is_object($inv->customer_address)) ? $inv->customer_address : null;
+            $buyerCountry   = $address && isset($address->country)     ? strtoupper((string) $address->country) : 'HU';
+            $buyerPostal    = $address && isset($address->postal_code) ? (string) $address->postal_code : '';
+            $buyerCity      = $address && isset($address->city)        ? (string) $address->city : '';
+            $buyerAddress1  = $address && isset($address->line1)       ? (string) $address->line1 : '';
+            $buyerAddress2  = $address && isset($address->line2)       ? (string) $address->line2 : '';
+            $buyerVatId = null;
+            if (is_object($inv) && isset($inv->customer_tax_ids) && is_array($inv->customer_tax_ids)) {
+                foreach ($inv->customer_tax_ids as $taxId) {
+                    if (is_object($taxId) && isset($taxId->value)) {
+                        $buyerVatId = (string) $taxId->value;
+                        break;
+                    }
+                }
+            }
+
+            $tasks[] = new TaskSpec(
+                taskType:       'szamlazz.issue_invoice',
+                idempotencyKey: IdempotencyKey::for('szamlazz.issue_invoice', $env->value, $invoiceId),
+                stripeRef:      $invoiceId,
+                payload: [
+                    'stripe_invoice_id'  => $invoiceId,
+                    'currency'           => $currency,
+                    'gross_amount_minor' => $amountTotal,
+                    'coupon_name'        => null,
+                    'buyer' => [
+                        'name'           => $customerName !== '' ? $customerName : $customerEmail,
+                        'email'          => $customerEmail,
+                        'country'        => $buyerCountry,
+                        'postal_code'    => $buyerPostal,
+                        'city'           => $buyerCity,
+                        'address_line_1' => $buyerAddress1,
+                        'address_line_2' => $buyerAddress2,
+                        'vat_id'         => $buyerVatId,
+                    ],
+                    'item' => [
+                        'name'   => 'Online oktatás',
+                        'period' => '',
+                    ],
+                ],
+                sourceEventId: $event->id,
+                actor:         'stripe',
+            );
 
             return $tasks;
+        };
+    }
+
+    /**
+     * `charge.refunded` — a Stripe charge was refunded. Route to:
+     *   - szamlazz.issue_storno (reverse the Számlázz invoice)
+     *   - (C5 will add: email.send_refund, ac.untag FT: ACTIVE, ac.tag FT: CANCELLED)
+     *
+     * @return callable(StripeEvent, Env): list<TaskSpec>
+     */
+    private static function chargeRefunded(): callable
+    {
+        return static function (StripeEvent $event, Env $env): array {
+            $charge = $event->data->object ?? null;
+            $chargeId = is_object($charge) && isset($charge->id) ? (string) $charge->id : $event->id;
+            // Stripe Charge objects carry `invoice` when they're the
+            // payment for an invoice (subscription case). Without it
+            // we can't resolve the original Számlázz document.
+            $stripeInvoiceId = is_object($charge) && isset($charge->invoice) ? (string) $charge->invoice : '';
+
+            if ($stripeInvoiceId === '') {
+                // One-off payments (no invoice) are out of scope for C4.
+                return [];
+            }
+
+            return [
+                new TaskSpec(
+                    taskType:       'szamlazz.issue_storno',
+                    idempotencyKey: IdempotencyKey::for('szamlazz.issue_storno', $env->value, $chargeId),
+                    stripeRef:      $chargeId,
+                    payload: [
+                        'stripe_charge_id'  => $chargeId,
+                        'stripe_invoice_id' => $stripeInvoiceId,
+                    ],
+                    sourceEventId: $event->id,
+                    actor:         'stripe',
+                ),
+            ];
         };
     }
 
@@ -258,6 +348,96 @@ final class StripeEventMap
             );
 
             return $tasks;
+        };
+    }
+
+    /**
+     * `customer.tax_id.updated` (or .created) — customer added/changed their
+     * VAT number at Stripe. Fan out to:
+     *   - `stripe.update_customer_vat`: audits the change and prepares for
+     *     downstream AC contact update (which will be added in a follow-up).
+     *
+     * @return callable(StripeEvent, Env): list<TaskSpec>
+     */
+    private static function customerTaxIdUpdated(): callable
+    {
+        return static function (StripeEvent $event, Env $env): array {
+            $taxId = $event->data->object ?? null;
+            $customerId = is_object($taxId) && isset($taxId->customer) ? (string) $taxId->customer : '';
+            $value      = is_object($taxId) && isset($taxId->value)    ? (string) $taxId->value    : '';
+            $type       = is_object($taxId) && isset($taxId->type)     ? (string) $taxId->type     : '';
+
+            if ($customerId === '') {
+                return [];
+            }
+
+            return [
+                new TaskSpec(
+                    taskType:       'stripe.update_customer_vat',
+                    idempotencyKey: IdempotencyKey::for('stripe.update_customer_vat', $env->value, $customerId, $value),
+                    stripeRef:      $customerId,
+                    payload: [
+                        'customer_id'  => $customerId,
+                        'tax_id_value' => $value,
+                        'tax_id_type'  => $type,
+                    ],
+                    sourceEventId: $event->id,
+                    actor:         'stripe',
+                ),
+            ];
+        };
+    }
+
+    /**
+     * `checkout.session.completed` — customer just completed a Stripe Checkout.
+     *
+     * For 1.0's paid-trial flow (trial = one-time payment followed by real
+     * subscription creation), we enqueue a `trial.convert_to_subscription`
+     * task that retry-schedules until the conversion is complete. See
+     * TrialConvertToSubscriptionHandler for the mechanic and the open
+     * question of whether this can be replaced with Stripe-native trial
+     * periods post-cutover (plan §17 item 8).
+     *
+     * Non-trial sessions (regular subscription checkouts) don't need this
+     * task — Stripe sends its own `invoice.payment_succeeded` which drives
+     * the fan-out in that path.
+     *
+     * @return callable(StripeEvent, Env): list<TaskSpec>
+     */
+    private static function checkoutSessionCompleted(): callable
+    {
+        return static function (StripeEvent $event, Env $env): array {
+            $session = $event->data->object ?? null;
+            $sessionId = is_object($session) && isset($session->id) ? (string) $session->id : $event->id;
+            $mode      = is_object($session) && isset($session->mode) ? (string) $session->mode : '';
+            $metadata  = is_object($session) && isset($session->metadata) ? $session->metadata : null;
+            $isTrial = is_object($metadata) && isset($metadata->flow) && (string) $metadata->flow === 'trial';
+
+            if (!$isTrial) {
+                // Non-trial subscription checkouts rely on the subsequent
+                // invoice.payment_succeeded event for fan-out. Ack with no
+                // tasks.
+                return [];
+            }
+
+            $targetPriceId = is_object($metadata) && isset($metadata->target_price_id)
+                ? (string) $metadata->target_price_id
+                : null;
+
+            return [
+                new TaskSpec(
+                    taskType:       'trial.convert_to_subscription',
+                    idempotencyKey: IdempotencyKey::for('trial.convert_to_subscription', $env->value, $sessionId),
+                    stripeRef:      $sessionId,
+                    payload: [
+                        'checkout_session_id' => $sessionId,
+                        'mode'                => $mode,
+                        'target_price_id'     => $targetPriceId,
+                    ],
+                    sourceEventId: $event->id,
+                    actor:         'stripe',
+                ),
+            ];
         };
     }
 

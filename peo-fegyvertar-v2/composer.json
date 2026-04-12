@@ -14,7 +14,10 @@
     "autoload": {
         "psr-4": {
             "Peoft\\": "src/"
-        }
+        },
+        "classmap": [
+            "lib/szamlaagent/"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

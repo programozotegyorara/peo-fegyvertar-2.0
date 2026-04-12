@@ -194,7 +194,11 @@ final class ImportFromLegacyDbCommand
             $forced['circle.mode'] = 'mock';
             $forced['activecampaign.mode'] = 'mock';
             $forced['szamlazz.mode'] = 'demo';
-            $forced['stripe.mode'] = 'live'; // Stripe uses real test mode, which is 'live' from our perspective
+            // Stripe defaults to mock in non-prod so fake fixture IDs in
+            // local smoke tests don't 404 against real Stripe. Flip to
+            // 'live' in /wp-content/peoft-env.php if you need real test-mode
+            // API calls (webhook verification always uses the real whsec).
+            $forced['stripe.mode'] = 'mock';
             $forced['mailer.mode'] = 'mock';
             foreach ($forced as $fq => $mode) {
                 if (!$dryRun) {

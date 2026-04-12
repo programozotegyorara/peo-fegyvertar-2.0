@@ -1,0 +1,30 @@
+{
+  "id": "evt_test_phase_c5_checkout_001",
+  "object": "event",
+  "api_version": "2024-04-10",
+  "created": 1712836800,
+  "type": "checkout.session.completed",
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_test_phase_c5_checkout",
+    "idempotency_key": null
+  },
+  "data": {
+    "object": {
+      "id": "cs_test_phase_c5_trial_0001",
+      "object": "checkout.session",
+      "customer": "cus_test_phase_c5_trial",
+      "customer_email": "phasec5-trial@example.test",
+      "mode": "payment",
+      "payment_status": "paid",
+      "status": "complete",
+      "subscription": null,
+      "livemode": false,
+      "metadata": {
+        "flow": "trial",
+        "target_price_id": "price_1RLTDSICqc6nLEt2QK6cHCLj"
+      }
+    }
+  }
+}
