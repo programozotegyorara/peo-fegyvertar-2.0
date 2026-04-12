@@ -118,7 +118,7 @@ final class EmailTemplateEditorPage extends AdminPage
         );
         if ($row === null) {
             echo '<div class="peoft-empty">Template <code>' . esc_html($slug) . '</code> not found in env <code>' . esc_html($this->env->value) . '</code>.</div>';
-            echo '<p><a class="button" href="' . $this->adminUrl(self::slug()) . '">← Back to list</a></p>';
+            echo '<p><a class="button" href="' . $this->adminUrl(self::slug()) . '">← Vissza a listához</a></p>';
             return;
         }
 
@@ -130,31 +130,31 @@ final class EmailTemplateEditorPage extends AdminPage
         }
         $declaredJson = wp_json_encode(array_values(array_filter($declared, 'is_string')));
 
-        echo '<p><a href="' . $this->adminUrl(self::slug()) . '">← Back to list</a></p>';
-        echo '<h2>Editing: <code>' . esc_html($slug) . '</code></h2>';
+        echo '<p><a href="' . $this->adminUrl(self::slug()) . '">← Vissza a listához</a></p>';
+        echo '<h2>Szerkesztés: <code>' . esc_html($slug) . '</code></h2>';
         echo '<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;">';
 
         // Main edit form (left column)
         echo '<div>';
         echo '<form id="peoft-template-form">';
         echo '<input type="hidden" name="slug" value="' . esc_attr($slug) . '">';
-        echo '<p><label><strong>Subject</strong></label><br>';
+        echo '<p><label><strong>Tárgy</strong></label><br>';
         echo '<input type="text" name="subject" value="' . esc_attr($subject) . '" style="width:100%;padding:6px;font-size:14px;"></p>';
-        echo '<p><label><strong>HTML Body</strong></label><br>';
+        echo '<p><label><strong>HTML törzs</strong></label><br>';
         echo '<textarea name="body" rows="20" style="width:100%;font-family:SF Mono,Consolas,monospace;font-size:12px;">' . esc_textarea($body) . '</textarea></p>';
-        echo '<p><label><strong>Declared variables (JSON array)</strong></label><br>';
+        echo '<p><label><strong>Deklarált változók (JSON tömb)</strong></label><br>';
         echo '<textarea name="variables_json" rows="3" style="width:100%;font-family:SF Mono,Consolas,monospace;font-size:12px;">' . esc_textarea($declaredJson) . '</textarea>';
-        echo '<br><span class="peoft-meta">Must include every <code>{{placeholder}}</code> used in the subject or body. Server-side validation rejects mismatches.</span></p>';
-        echo '<p><button type="submit" class="button button-primary">Save Template</button> ';
-        echo '<a class="button" href="' . $this->adminUrl(self::slug()) . '">Cancel</a></p>';
+        echo '<br><span class="peoft-meta">Tartalmaznia kell minden <code>{{placeholder}}</code> a tárgyban vagy törzsben használt helyőrzőt. A szerver elutasítja az eltéréseket.</span></p>';
+        echo '<p><button type="submit" class="button button-primary">Sablon mentése</button> ';
+        echo '<a class="button" href="' . $this->adminUrl(self::slug()) . '">Mégse</a></p>';
         echo '<div id="peoft-template-result" style="margin-top:10px;"></div>';
         echo '</form>';
         echo '</div>';
 
         // Declared-variables sidebar (right column)
         echo '<div>';
-        echo '<h3 style="margin-top:0;">Declared variables</h3>';
-        echo '<p class="peoft-meta">These placeholders must all be present in the body:</p>';
+        echo '<h3 style="margin-top:0;">Deklarált változók</h3>';
+        echo '<p class="peoft-meta">Ezeknek a helyőrzőknek szerepelniük kell a törzsben:</p>';
         echo '<ul id="peoft-declared-list" style="font-family:SF Mono,Consolas,monospace;font-size:12px;line-height:1.8;">';
         foreach ($declared as $varName) {
             if (!is_string($varName)) {
@@ -206,12 +206,12 @@ final class EmailTemplateEditorPage extends AdminPage
             const msg = document.createElement('div');
             if (res.ok) {
                 msg.setAttribute('style', 'padding:10px;background:#d1fae5;color:#065f46;border-radius:4px;');
-                msg.textContent = 'Saved. Declared ' + (body.declared_count || 0) + ' variables.';
+                msg.textContent = 'Mentve. Deklarált ' + (body.declared_count || 0) + ' változó.';
             } else {
                 msg.setAttribute('style', 'padding:10px;background:#fee2e2;color:#991b1b;border-radius:4px;');
-                let t = 'Save failed: ' + (body.error || res.status);
+                let t = 'Mentés sikertelen: ' + (body.error || res.status);
                 if (Array.isArray(body.missing) && body.missing.length > 0) {
-                    t += '. Placeholders used in body but NOT declared: ' + body.missing.join(', ');
+                    t += '. A törzsben használt, de nem deklarált helyőrzők: ' + body.missing.join(', ');
                 }
                 msg.textContent = t;
             }
@@ -219,7 +219,7 @@ final class EmailTemplateEditorPage extends AdminPage
         } catch (e) {
             const msg = document.createElement('div');
             msg.setAttribute('style', 'padding:10px;background:#fee2e2;color:#991b1b;border-radius:4px;');
-            msg.textContent = 'Network error: ' + e.message;
+            msg.textContent = 'Hálózati hiba: ' + e.message;
             result.appendChild(msg);
         }
     });

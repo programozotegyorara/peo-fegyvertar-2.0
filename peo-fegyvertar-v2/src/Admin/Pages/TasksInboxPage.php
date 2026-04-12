@@ -205,7 +205,7 @@ HTML;
 
     private function actionButton(int $id, string $op, string $label): string
     {
-        return '<button type="button" class="peoft-task-action" data-task-id="' . $id . '" data-op="' . esc_attr($op) . '" data-confirm="' . esc_attr($label) . '">' . esc_html($op) . '</button>';
+        return '<button type="button" class="peoft-task-action" data-task-id="' . $id . '" data-op="' . esc_attr($op) . '" data-confirm="' . esc_attr($label) . '">' . esc_html($label) . '</button>';
     }
 
     private static function truncate(string $s, int $max): string

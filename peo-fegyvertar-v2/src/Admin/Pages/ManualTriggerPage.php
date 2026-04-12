@@ -123,25 +123,25 @@ final class ManualTriggerPage extends AdminPage
         sort($types);
         $defaults = $this->defaultPayloads();
 
-        echo '<p class="peoft-meta">Every form below posts to <code>/wp-json/peo-fegyvertar/v2/admin/trigger</code> with the current user as <code>admin:{id}</code>. The idempotency key is deterministic per (task_type, env, stripe_ref, timestamp), so re-submitting within a second dedupes.</p>';
+        echo '<p class="peoft-meta">Az alábbi űrlap a következő végpontra küld: <code>/wp-json/peo-fegyvertar/v2/admin/trigger</code> a bejelentkezett felhasználóval mint <code>admin:{id}</code>. Az idempotencia kulcs determinisztikus: (feladat típus, környezet, Stripe hiv., időbélyeg) alapján, tehát az 1 másodpercen belüli újraküldés duplikáció-szűrést kap.</p>';
 
         echo '<div class="peoft-filters" style="margin-bottom:20px;">';
-        echo '<label>Task type: <select id="peoft-task-type-picker">';
-        echo '<option value="">— pick a task type —</option>';
+        echo '<label>Feladat típus: <select id="peoft-task-type-picker">';
+        echo '<option value="">— válassz feladattípust —</option>';
         foreach ($types as $type) {
             echo '<option value="' . esc_attr($type) . '">' . esc_html($type) . '</option>';
         }
         echo '</select></label>';
-        echo '<span class="peoft-meta">' . count($types) . ' registered handlers</span>';
+        echo '<span class="peoft-meta">' . count($types) . ' regisztrált kezelő</span>';
         echo '</div>';
 
         echo '<form id="peoft-trigger-form" style="background:#fff;border:1px solid #e5e7eb;padding:20px;border-radius:4px;display:none;">';
         echo '<input type="hidden" name="task_type" id="peoft-task-type-hidden">';
-        echo '<p><label><strong>Stripe ref</strong> <span class="peoft-meta">(invoice id / charge id / subscription id / customer id / session id — used as dedup discriminator)</span></label><br>';
+        echo '<p><label><strong>Stripe hivatkozás</strong> <span class="peoft-meta">(számla / terhelés / előfizetés / ügyfél / munkamenet azonosító — duplikáció szűréshez)</span></label><br>';
         echo '<input type="text" name="stripe_ref" id="peoft-stripe-ref" style="width:100%;padding:6px;font-size:13px;"></p>';
-        echo '<p><label><strong>Payload</strong> <span class="peoft-meta">(JSON — the handler receives this as <code>task.payload</code>)</span></label><br>';
+        echo '<p><label><strong>Adattartalom</strong> <span class="peoft-meta">(JSON — a kezelő ezt kapja meg mint <code>task.payload</code>)</span></label><br>';
         echo '<textarea name="payload" id="peoft-payload" rows="14" style="width:100%;font-family:SF Mono,Consolas,monospace;font-size:12px;"></textarea></p>';
-        echo '<p><button type="submit" class="button button-primary">Enqueue Task</button></p>';
+        echo '<p><button type="submit" class="button button-primary">Feladat indítása</button></p>';
         echo '<div id="peoft-trigger-result"></div>';
         echo '</form>';
 
@@ -192,7 +192,7 @@ final class ManualTriggerPage extends AdminPage
         try {
             payload = JSON.parse(payloadEl.value);
         } catch (err) {
-            showResult('Invalid JSON in payload: ' + err.message, true);
+            showResult('Érvénytelen JSON az adattartalomban: ' + err.message, true);
             return;
         }
         try {
@@ -207,14 +207,14 @@ final class ManualTriggerPage extends AdminPage
             });
             const body = await res.json();
             if (!res.ok) {
-                showResult('Enqueue failed: ' + (body.error || res.status) +
-                           (body.registered ? '. Registered types: ' + body.registered.join(', ') : ''), true);
+                showResult('Indítás sikertelen: ' + (body.error || res.status) +
+                           (body.registered ? '. Regisztrált típusok: ' + body.registered.join(', ') : ''), true);
                 return;
             }
-            showResult('Enqueued. Task id(s): ' + (body.ids || []).join(', ') +
-                       ' (inserted=' + body.inserted + ', deduped=' + body.skipped + ')', false);
+            showResult('Besorolva. Feladat azonosító(k): ' + (body.ids || []).join(', ') +
+                       ' (létrehozva=' + body.inserted + ', duplikáció=' + body.skipped + ')', false);
         } catch (err) {
-            showResult('Network error: ' + err.message, true);
+            showResult('Hálózati hiba: ' + err.message, true);
         }
     });
 

@@ -161,7 +161,7 @@ final class AuditViewerPage extends AdminPage
                 echo '<a href="' . $relatedUrl . '" title="' . esc_attr($requestId) . '">' . esc_html($requestIdShort) . '</a>';
             }
             echo '</td>';
-            echo '<td><details><summary style="cursor:pointer;font-size:11px;color:#2563eb;">Expand</summary>';
+            echo '<td><details><summary style="cursor:pointer;font-size:11px;color:#2563eb;">Részletek</summary>';
             echo self::renderDetails($row);
             echo '</details></td>';
             echo '</tr>';

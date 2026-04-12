@@ -50,15 +50,15 @@ final class ReconciliationPage extends AdminPage
         echo '<form method="get" class="peoft-filters" style="margin-bottom:20px;">';
         echo '<input type="hidden" name="page" value="' . esc_attr(self::slug()) . '">';
         echo '<label>Email: <input type="email" name="email" value="' . esc_attr($email) . '" size="30"></label>';
-        echo '<label>— or Customer ID: <input type="text" name="customer_id" value="' . esc_attr($customerId) . '" size="28" placeholder="cus_..."></label>';
-        echo '<button type="submit" class="button button-primary">Look up</button>';
+        echo '<label>— vagy Ügyfél ID: <input type="text" name="customer_id" value="' . esc_attr($customerId) . '" size="28" placeholder="cus_..."></label>';
+        echo '<button type="submit" class="button button-primary">Keresés</button>';
         if ($email !== '' || $customerId !== '') {
-            echo ' <a class="button-link" href="' . $this->adminUrl(self::slug()) . '">Reset</a>';
+            echo ' <a class="button-link" href="' . $this->adminUrl(self::slug()) . '">Alaphelyzet</a>';
         }
         echo '</form>';
 
         if ($email === '' && $customerId === '') {
-            echo '<div class="peoft-empty">Enter an email or customer id to pull live state from all four downstreams.</div>';
+            echo '<div class="peoft-empty">Adj meg egy e-mail címet vagy ügyfél azonosítót az élő állapot lekéréséhez.</div>';
             return;
         }
 
@@ -80,9 +80,9 @@ final class ReconciliationPage extends AdminPage
 
     private function renderStripeColumn(string $customerId): void
     {
-        echo $this->columnHeader('Stripe', $customerId === '' ? 'no customer id' : $customerId);
+        echo $this->columnHeader('Stripe', $customerId === '' ? 'nincs ügyfél ID' : $customerId);
         if ($customerId === '') {
-            echo '<p class="peoft-meta">Provide a customer id to fetch the Stripe bundle.</p>';
+            echo '<p class="peoft-meta">Adj meg egy ügyfél ID-t a Stripe adatok lekéréséhez.</p>';
             echo '</div>';
             return;
         }
@@ -90,11 +90,11 @@ final class ReconciliationPage extends AdminPage
         $loader = $this->container->get(CustomerContextLoader::class);
         $bundle = $loader->loadOrNull($customerId);
         if ($bundle === null) {
-            echo '<p><span class="peoft-status peoft-status-failed">NOT FOUND</span></p>';
+            echo '<p><span class="peoft-status peoft-status-failed">NEM TALÁLHATÓ</span></p>';
             echo '</div>';
             return;
         }
-        echo '<p><span class="peoft-status peoft-status-done">FOUND</span></p>';
+        echo '<p><span class="peoft-status peoft-status-done">MEGTALÁLVA</span></p>';
         echo '<dl class="peoft-meta" style="margin:0;line-height:1.8;">';
         $this->dt('email', $bundle->email);
         $this->dt('name', $bundle->name);
@@ -112,7 +112,7 @@ final class ReconciliationPage extends AdminPage
 
     private function renderSzamlazzColumn(string $email, string $customerId): void
     {
-        echo $this->columnHeader('Számlázz', 'xref lookup');
+        echo $this->columnHeader('Számlázz', 'xref keresés');
         /** @var Connection $db */
         $db = $this->container->get(Connection::class);
         $wpdb = $db->wpdb();
@@ -131,12 +131,12 @@ final class ReconciliationPage extends AdminPage
             ARRAY_A
         ) ?: [];
         if ($rows === []) {
-            echo '<p><span class="peoft-status peoft-status-pending">NO INVOICES</span></p>';
-            echo '<p class="peoft-meta">No peoft_szamlazz_xref rows yet for this env. Live Számlázz search by email will be added in a follow-up.</p>';
+            echo '<p><span class="peoft-status peoft-status-pending">NINCS SZÁMLA</span></p>';
+            echo '<p class="peoft-meta">Még nincsenek xref bejegyzések ehhez a környezethez. Az e-mail alapú Számlázz keresés egy későbbi fejlesztés.</p>';
             echo '</div>';
             return;
         }
-        echo '<p><span class="peoft-status peoft-status-done">' . count($rows) . ' RECENT</span></p>';
+        echo '<p><span class="peoft-status peoft-status-done">' . count($rows) . ' LEGUTÓBBI</span></p>';
         echo '<ul class="peoft-meta" style="margin:0;padding-left:16px;font-size:11px;">';
         foreach ($rows as $row) {
             echo '<li><code>' . esc_html((string) $row['szamlazz_document_number']) . '</code>'
@@ -144,15 +144,15 @@ final class ReconciliationPage extends AdminPage
                 . '<br><span style="color:#9ca3af;">' . esc_html(substr((string) $row['stripe_ref'], 0, 30)) . '</span></li>';
         }
         echo '</ul>';
-        echo '<p class="peoft-meta"><em>Note: shows recent xref rows for the env, not filtered by this customer. Live Számlázz search by buyer_email is a follow-up.</em></p>';
+        echo '<p class="peoft-meta"><em>Megjegyzés: a legutóbbi xref sorokat mutatja a környezethez, nem szűrve erre az ügyfélre.</em></p>';
         echo '</div>';
     }
 
     private function renderCircleColumn(string $email): void
     {
-        echo $this->columnHeader('Circle', $email === '' ? 'no email' : $email);
+        echo $this->columnHeader('Circle', $email === '' ? 'nincs e-mail' : $email);
         if ($email === '') {
-            echo '<p class="peoft-meta">Provide an email to look up Circle membership.</p>';
+            echo '<p class="peoft-meta">Adj meg egy e-mail címet a Circle tagság ellenőrzéséhez.</p>';
             echo '</div>';
             return;
         }
@@ -160,25 +160,25 @@ final class ReconciliationPage extends AdminPage
         $circle = $this->container->get(CircleClient::class);
         $member = $circle->memberByEmail($email);
         if ($member === null) {
-            echo '<p><span class="peoft-status peoft-status-pending">NOT A MEMBER</span></p>';
+            echo '<p><span class="peoft-status peoft-status-pending">NEM TAG</span></p>';
             echo '</div>';
             return;
         }
-        echo '<p><span class="peoft-status peoft-status-done">MEMBER</span></p>';
+        echo '<p><span class="peoft-status peoft-status-done">TAG</span></p>';
         echo '<dl class="peoft-meta" style="margin:0;line-height:1.8;">';
         $this->dt('id', $member->id);
         $this->dt('email', $member->email);
         $this->dt('name', $member->name ?? '(none)');
         echo '</dl>';
-        echo '<p class="peoft-meta"><em>Access-group membership check is a follow-up — requires a list endpoint the Circle SDK doesn\'t expose cleanly yet.</em></p>';
+        echo '<p class="peoft-meta"><em>Hozzáférési csoport tagság ellenőrzése egy későbbi fejlesztésben érkezik.</em></p>';
         echo '</div>';
     }
 
     private function renderActiveCampaignColumn(string $email): void
     {
-        echo $this->columnHeader('ActiveCampaign', $email === '' ? 'no email' : $email);
+        echo $this->columnHeader('ActiveCampaign', $email === '' ? 'nincs e-mail' : $email);
         if ($email === '') {
-            echo '<p class="peoft-meta">Provide an email to look up AC contact.</p>';
+            echo '<p class="peoft-meta">Adj meg egy e-mail címet az AC kapcsolat ellenőrzéséhez.</p>';
             echo '</div>';
             return;
         }
@@ -186,11 +186,11 @@ final class ReconciliationPage extends AdminPage
         $ac = $this->container->get(ActiveCampaignClient::class);
         $contact = $ac->findContactByEmail($email);
         if ($contact === null) {
-            echo '<p><span class="peoft-status peoft-status-pending">NOT A CONTACT</span></p>';
+            echo '<p><span class="peoft-status peoft-status-pending">NEM KAPCSOLAT</span></p>';
             echo '</div>';
             return;
         }
-        echo '<p><span class="peoft-status peoft-status-done">CONTACT</span></p>';
+        echo '<p><span class="peoft-status peoft-status-done">KAPCSOLAT</span></p>';
         echo '<dl class="peoft-meta" style="margin:0;line-height:1.8;">';
         $this->dt('id', $contact->id);
         $this->dt('email', $contact->email);
@@ -200,7 +200,7 @@ final class ReconciliationPage extends AdminPage
         // Tag state for the known FT:* tags
         $hasActive  = $ac->hasTag($email, 'FT: ACTIVE');
         $hasDeleted = $ac->hasTag($email, 'FT: DELETED');
-        echo '<p class="peoft-meta"><strong>Tags:</strong><br>';
+        echo '<p class="peoft-meta"><strong>Címkék:</strong><br>';
         echo 'FT: ACTIVE ' . ($hasActive ? '<span style="color:#065f46;">✓</span>' : '<span style="color:#9ca3af;">✗</span>') . '<br>';
         echo 'FT: DELETED ' . ($hasDeleted ? '<span style="color:#065f46;">✓</span>' : '<span style="color:#9ca3af;">✗</span>');
         echo '</p>';
@@ -231,13 +231,13 @@ final class ReconciliationPage extends AdminPage
             ARRAY_A
         ) ?: [];
 
-        echo '<h2>Last 10 tasks mentioning ' . esc_html($needle) . '</h2>';
+        echo '<h2>Utolsó 10 feladat a következővel: ' . esc_html($needle) . '</h2>';
         if ($rows === []) {
-            echo '<div class="peoft-empty">No tasks matched.</div>';
+            echo '<div class="peoft-empty">Nincs találat.</div>';
             return;
         }
         echo '<table class="peoft-list"><thead><tr>';
-        echo '<th>#</th><th>Type</th><th>Status</th><th>Stripe ref</th><th>Created</th><th></th></tr></thead><tbody>';
+        echo '<th>#</th><th>Típus</th><th>Állapot</th><th>Stripe hiv.</th><th>Létrehozva</th><th></th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $id = (int) $row['id'];
             echo '<tr>';
