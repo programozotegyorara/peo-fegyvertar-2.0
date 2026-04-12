@@ -46,6 +46,7 @@ final class ImportFromLegacyDbCommand
     {
         $sourceDb = (string) ($assoc['source-db'] ?? '');
         $toEnvRaw = (string) ($assoc['to-env'] ?? '');
+        $what = (string) ($assoc['what'] ?? 'all');
         $dryRun = !empty($assoc['dry-run']);
         $allowLiveDev = !empty($assoc['allow-live-dev']);
 
@@ -89,18 +90,32 @@ final class ImportFromLegacyDbCommand
             'email_templates' => ['imported' => 0],
         ];
 
+        $validWhats = ['all', 'config', 'events', 'counters', 'templates'];
+        if (!in_array($what, $validWhats, true)) {
+            \WP_CLI::error("Invalid --what='{$what}'. Expected: " . implode(' | ', $validWhats));
+            return;
+        }
+
         // ---- 1. Config ----
-        $configRepo = $this->container->get(ConfigRepository::class);
-        $summary['config'] = $this->importConfig($sourcePdo, $configRepo, $toEnv, $dryRun, $allowLiveDev);
+        if ($what === 'all' || $what === 'config') {
+            $configRepo = $this->container->get(ConfigRepository::class);
+            $summary['config'] = $this->importConfig($sourcePdo, $configRepo, $toEnv, $dryRun, $allowLiveDev);
+        }
 
         // ---- 2. Webhook events ----
-        $summary['webhook_events'] = $this->importWebhookEvents($sourcePdo, $wpdb, $toEnv, $dryRun);
+        if ($what === 'all' || $what === 'events') {
+            $summary['webhook_events'] = $this->importWebhookEvents($sourcePdo, $wpdb, $toEnv, $dryRun);
+        }
 
         // ---- 3. Counter seed ----
-        $summary['counters'] = $this->importCounters($sourcePdo, $wpdb, $toEnv, $dryRun);
+        if ($what === 'all' || $what === 'counters') {
+            $summary['counters'] = $this->importCounters($sourcePdo, $wpdb, $toEnv, $dryRun);
+        }
 
         // ---- 4. Email templates ----
-        $summary['email_templates'] = $this->importEmailTemplates($sourcePdo, $wpdb, $toEnv, $dryRun);
+        if ($what === 'all' || $what === 'templates') {
+            $summary['email_templates'] = $this->importEmailTemplates($sourcePdo, $wpdb, $toEnv, $dryRun);
+        }
 
         AuditLog::record(
             actor: 'cli',

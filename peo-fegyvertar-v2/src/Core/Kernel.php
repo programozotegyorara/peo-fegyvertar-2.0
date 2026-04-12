@@ -19,6 +19,13 @@ use Peoft\Admin\Rest\TriggerRestRoutes;
 use Peoft\Audit\AuditLog;
 use Peoft\Audit\AuditRepository;
 use Peoft\Cli\CliBootstrap;
+use Peoft\Dwh\DwhRunRepository;
+use Peoft\Dwh\DwhRunner;
+use Peoft\Dwh\Etl\CircleExtractor as DwhCircleExtractor;
+use Peoft\Dwh\Etl\KpiBuilder;
+use Peoft\Dwh\Etl\SnapshotBuilder;
+use Peoft\Dwh\Etl\StripeExtractor as DwhStripeExtractor;
+use Peoft\Dwh\Etl\SzamlazzExtractor as DwhSzamlazzExtractor;
 use Peoft\Core\Config\Config;
 use Peoft\Core\Config\ConfigLoader;
 use Peoft\Core\Config\ConfigRepository;
@@ -405,6 +412,38 @@ final class Kernel
             $menu->register(DwhStatusPage::class);
             $menu->hook();
         }
+
+        // Phase E: DWH service bindings. Completely isolated from the
+        // orchestrator — uses its own Stripe SDK client from config, never
+        // touches peoft_tasks / peoft_webhook_events.
+        $container->bind(DwhRunRepository::class, static function (Container $c): DwhRunRepository {
+            return new DwhRunRepository($c->get(Connection::class));
+        });
+        $container->bind(DwhStripeExtractor::class, static function (Container $c): DwhStripeExtractor {
+            return new DwhStripeExtractor($c->get(Connection::class));
+        });
+        $container->bind(DwhSzamlazzExtractor::class, static function (Container $c): DwhSzamlazzExtractor {
+            return new DwhSzamlazzExtractor($c->get(Connection::class));
+        });
+        $container->bind(DwhCircleExtractor::class, static function (Container $c): DwhCircleExtractor {
+            return new DwhCircleExtractor($c->get(Connection::class));
+        });
+        $container->bind(SnapshotBuilder::class, static function (Container $c): SnapshotBuilder {
+            return new SnapshotBuilder($c->get(Connection::class));
+        });
+        $container->bind(KpiBuilder::class, static function (Container $c): KpiBuilder {
+            return new KpiBuilder($c->get(Connection::class));
+        });
+        $container->bind(DwhRunner::class, static function (Container $c): DwhRunner {
+            return new DwhRunner(
+                runs:      $c->get(DwhRunRepository::class),
+                stripe:    $c->get(DwhStripeExtractor::class),
+                szamlazz:  $c->get(DwhSzamlazzExtractor::class),
+                circle:    $c->get(DwhCircleExtractor::class),
+                snapshots: $c->get(SnapshotBuilder::class),
+                kpi:       $c->get(KpiBuilder::class),
+            );
+        });
 
         self::$container = $container;
         self::$booted = true;

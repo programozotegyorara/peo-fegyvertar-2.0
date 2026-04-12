@@ -24,6 +24,25 @@ final class EnvBanner
 {
     public static function render(Env $env): void
     {
+        // PEOFT_IMPORT_MODE banner — bright red warning when the constant
+        // is set in wp-config.php. Plan §11: stays until the constant is
+        // removed by the operator after a successful import.
+        if (defined('PEOFT_IMPORT_MODE') && constant('PEOFT_IMPORT_MODE')) {
+            echo '<div style="background:#7f1d1d;color:#fff;padding:12px 16px;margin:0 -20px 0 -20px;font-size:14px;font-weight:bold;border-bottom:3px solid #dc2626;">';
+            echo '&#9888; IMPORT MODE IS ACTIVE &mdash; remove <code style="color:#fca5a5;">define(\'PEOFT_IMPORT_MODE\', true);</code> from <code style="color:#fca5a5;">wp-config.php</code> when done.';
+            echo '</div>';
+        }
+
+        // Cutover-date info banner (once set, always shown)
+        $cutoverDate = \Peoft\Core\Config\Config::isBound()
+            ? \Peoft\Core\Config\Config::get('system.cutover_date')
+            : null;
+        if ($cutoverDate !== null) {
+            echo '<div style="background:#1e3a5f;color:#93c5fd;padding:6px 16px;margin:0 -20px 0 -20px;font-size:12px;border-bottom:1px solid #2563eb;">';
+            echo 'Cutover date: <strong>' . esc_html((string) $cutoverDate) . '</strong> &mdash; records before this date are labeled "Legacy (pre-cutover)" in admin views.';
+            echo '</div>';
+        }
+
         [$color, $label, $detail] = match ($env) {
             Env::Dev  => ['#2563eb', 'DEV',  'LOCAL — test credentials, mock downstreams. Safe to break.'],
             Env::Uat  => ['#ea580c', 'UAT',  'Staging — test credentials, real downstream accounts where provisioned.'],
