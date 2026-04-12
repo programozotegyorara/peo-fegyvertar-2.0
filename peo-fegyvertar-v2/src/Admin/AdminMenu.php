@@ -66,8 +66,16 @@ final class AdminMenu
             30
         );
 
-        foreach ($this->pages as $pageClass) {
+        foreach ($this->pages as $i => $pageClass) {
             $slug = $pageClass::slug();
+            // Skip the first page in the submenu loop — it's already
+            // registered as the top-level add_menu_page callback above.
+            // WP auto-creates a submenu entry for the top-level slug;
+            // we just rename its label below. Registering it again would
+            // cause the page to render twice (double env banner).
+            if ($i === 0) {
+                continue;
+            }
             add_submenu_page(
                 self::TOP_SLUG,
                 'PEO Fegyvertár',
