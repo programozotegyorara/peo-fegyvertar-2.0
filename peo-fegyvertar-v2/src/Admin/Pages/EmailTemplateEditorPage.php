@@ -141,7 +141,11 @@ final class EmailTemplateEditorPage extends AdminPage
         echo '<p><label><strong>Tárgy</strong></label><br>';
         echo '<input type="text" name="subject" value="' . esc_attr($subject) . '" style="width:100%;padding:6px;font-size:14px;"></p>';
         echo '<p><label><strong>HTML törzs</strong></label><br>';
-        echo '<textarea name="body" rows="20" style="width:100%;font-family:SF Mono,Consolas,monospace;font-size:12px;">' . esc_textarea($body) . '</textarea></p>';
+        echo '<textarea name="body" id="peoft-body-editor" rows="20" style="width:100%;font-family:SF Mono,Consolas,monospace;font-size:12px;">' . esc_textarea($body) . '</textarea></p>';
+        echo '<p><label><strong>Előnézet</strong></label></p>';
+        echo '<div style="border:1px solid #d1d5db;border-radius:4px;background:#fff;overflow:hidden;">';
+        echo '<iframe id="peoft-preview-frame" sandbox="allow-same-origin" style="width:100%;height:500px;border:none;"></iframe>';
+        echo '</div>';
         echo '<p><label><strong>Deklarált változók (JSON tömb)</strong></label><br>';
         echo '<textarea name="variables_json" rows="3" style="width:100%;font-family:SF Mono,Consolas,monospace;font-size:12px;">' . esc_textarea($declaredJson) . '</textarea>';
         echo '<br><span class="peoft-meta">Tartalmaznia kell minden <code>{{placeholder}}</code> a tárgyban vagy törzsben használt helyőrzőt. A szerver elutasítja az eltéréseket.</span></p>';
@@ -184,6 +188,26 @@ final class EmailTemplateEditorPage extends AdminPage
     const result = document.getElementById('peoft-template-result');
     const nonce = {$nonceJs};
     const saveUrl = {$saveUrlJs};
+
+    // --- HTML előnézet: iframe frissítés gépelés közben ---
+    const bodyEditor = document.getElementById('peoft-body-editor');
+    const previewFrame = document.getElementById('peoft-preview-frame');
+    let previewTimer = null;
+    function updatePreview() {
+        if (!previewFrame || !bodyEditor) return;
+        const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+        doc.open();
+        doc.write(bodyEditor.value);
+        doc.close();
+    }
+    if (bodyEditor && previewFrame) {
+        bodyEditor.addEventListener('input', () => {
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(updatePreview, 300);
+        });
+        // Első betöltéskor is rendereljük
+        updatePreview();
+    }
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
