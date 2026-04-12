@@ -65,7 +65,8 @@ final class ConfigRestRoutes extends AdminRestController
         try {
             $this->repo->set($key, $value, updatedBy: $this->actorString());
         } catch (\Throwable $e) {
-            return new \WP_REST_Response(['ok' => false, 'error' => 'rejected', 'detail' => $e->getMessage()], 400);
+            error_log('[peoft] config save rejected for ' . $key . ': ' . $e->getMessage());
+            return new \WP_REST_Response(['ok' => false, 'error' => 'rejected'], 400);
         }
 
         // Mark the key secret if applicable so the audit Redactor scrubs it.
@@ -91,6 +92,12 @@ final class ConfigRestRoutes extends AdminRestController
         if ($key === '' || $password === '') {
             return new \WP_REST_Response(['ok' => false, 'error' => 'missing_fields'], 400);
         }
+        // Only secret keys can be "revealed". Non-secret keys are visible
+        // in the Config Editor table directly and don't need the password
+        // re-auth flow. Prevents API callers from bypassing the UI intent.
+        if (!ConfigSchema::isSecret($key)) {
+            return new \WP_REST_Response(['ok' => false, 'error' => 'not_a_secret_key'], 400);
+        }
 
         $user = wp_get_current_user();
         if (!$user || !$user->exists()) {
@@ -109,10 +116,16 @@ final class ConfigRestRoutes extends AdminRestController
             subjectId:   $key,
             after:       ['key' => $key, 'revealed_to' => $this->actorString()],
         );
-        return new \WP_REST_Response([
+        $resp = new \WP_REST_Response([
             'ok' => true,
             'config_key' => $key,
             'config_value' => is_scalar($value) ? (string) $value : wp_json_encode($value),
         ], 200);
+        // Prevent the revealed secret from lingering in browser cache on
+        // shared workstations. The value should only be visible in the
+        // transient modal display, not in the Network tab cache.
+        $resp->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+        $resp->header('Pragma', 'no-cache');
+        return $resp;
     }
 }

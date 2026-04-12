@@ -33,6 +33,7 @@ final class Redactor
 
     public const KEY_DENY_PATTERNS = [
         '/secret_key/i',
+        '/publishable_key/i',
         '/api_key/i',
         '/password/i',
         '/token/i',

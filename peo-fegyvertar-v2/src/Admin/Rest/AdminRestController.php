@@ -56,7 +56,7 @@ abstract class AdminRestController
     {
         $userId = (int) get_current_user_id();
         if ($userId === 0) {
-            return false; // shouldn't reach here post-auth but defensive
+            return true; // shouldn't reach here post-auth; treat as rate-limited, not unlimited
         }
         $key = 'peoft_rl_' . $userId;
         $count = (int) (get_transient($key) ?: 0);

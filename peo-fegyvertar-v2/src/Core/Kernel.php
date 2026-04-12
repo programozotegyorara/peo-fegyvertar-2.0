@@ -144,6 +144,28 @@ final class Kernel
             $container->get(Clock::class)
         );
 
+        // ---- PROD-leak guard (§16 item 17) ----
+        // Now that Config is loaded, check that the Stripe key type matches
+        // the env. Prevents DEV from using live keys (would charge real
+        // customers) and PROD from using test keys (webhooks would fail).
+        $stripeKey = (string) Config::for('stripe')->get('secret_key', '');
+        if ($stripeKey !== '') {
+            $isLiveKey = str_starts_with($stripeKey, 'sk_live_') || str_starts_with($stripeKey, 'rk_live_');
+            $isTestKey = str_starts_with($stripeKey, 'sk_test_') || str_starts_with($stripeKey, 'rk_test_');
+            if (!$env->isProd() && $isLiveKey) {
+                Config::reset();
+                AuditLog::reset();
+                self::adminNotice('PEO Fegyvertár 2.0: REFUSING TO BOOT — non-prod env (' . $env->value . ') has a live Stripe key (sk_live_…). This would charge real customers from DEV/UAT. Remove the live key or switch PEOFT_ENV to prod.');
+                return;
+            }
+            if ($env->isProd() && $isTestKey) {
+                Config::reset();
+                AuditLog::reset();
+                self::adminNotice('PEO Fegyvertár 2.0: REFUSING TO BOOT — PROD env has a test Stripe key (sk_test_…). Real webhooks will fail signature verification. Set the live key.');
+                return;
+            }
+        }
+
         // Phase B: orchestrator services.
         $container->bind(TaskRepository::class, static function (Container $c): TaskRepository {
             return new TaskRepository($c->get(Connection::class));

@@ -135,7 +135,8 @@ final class TasksRestRoutes extends AdminRestController
         try {
             $outcome = $this->worker->runOnce($id);
         } catch (\Throwable $e) {
-            return new \WP_REST_Response(['ok' => false, 'error' => 'run_failed', 'detail' => $e->getMessage()], 500);
+            error_log('[peoft] runNow task #' . $id . ' threw: ' . $e->getMessage());
+            return new \WP_REST_Response(['ok' => false, 'error' => 'run_failed'], 500);
         }
         return new \WP_REST_Response(['ok' => true, 'task_id' => $id, 'outcome' => $outcome], 200);
     }
