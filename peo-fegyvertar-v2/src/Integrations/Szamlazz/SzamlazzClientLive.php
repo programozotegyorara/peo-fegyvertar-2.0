@@ -9,6 +9,7 @@ use Peoft\Audit\AuditLog;
 use Peoft\Orchestrator\Worker\PoisonException;
 use Peoft\Orchestrator\Worker\RetryableException;
 use SzamlaAgent\Document\Invoice\ReverseInvoice;
+use SzamlaAgent\SzamlaAgent;
 use SzamlaAgent\SzamlaAgentAPI;
 
 defined('ABSPATH') || exit;
@@ -48,7 +49,7 @@ final class SzamlazzClientLive implements SzamlazzClient
         $invoice = $this->builder->build($input);
 
         try {
-            $agent = SzamlaAgentAPI::create($this->apiKey);
+            $agent = $this->agent();
             $result = $agent->generateInvoice($invoice);
         } catch (\Throwable $e) {
             $this->auditSdkCall('generateInvoice', 0, $input->orderNumber, null, $startedMs, $e->getMessage());
@@ -72,7 +73,7 @@ final class SzamlazzClientLive implements SzamlazzClient
         $pdfPath = null;
         try {
             $pdfStartedMs = (int) (microtime(true) * 1000);
-            $agent = SzamlaAgentAPI::create($this->apiKey);
+            $agent = $this->agent();
             $pdfResult = $agent->getInvoicePdf($documentNumber);
             $pdfContent = $pdfResult->toPdf();
             if (!is_string($pdfContent) || $pdfContent === '') {
@@ -105,7 +106,7 @@ final class SzamlazzClientLive implements SzamlazzClient
         $header->setInvoiceTemplate(ReverseInvoice::INVOICE_TEMPLATE_DEFAULT);
 
         try {
-            $agent = SzamlaAgentAPI::create($this->apiKey);
+            $agent = $this->agent();
             $result = $agent->generateReverseInvoice($storno);
         } catch (\Throwable $e) {
             $this->auditSdkCall('generateReverseInvoice', 0, $originalDocumentNumber, null, $startedMs, $e->getMessage());
@@ -127,7 +128,7 @@ final class SzamlazzClientLive implements SzamlazzClient
         // Fetch + save storno PDF, same best-effort flow as issueInvoice.
         $pdfPath = null;
         try {
-            $agent = SzamlaAgentAPI::create($this->apiKey);
+            $agent = $this->agent();
             $pdfContent = $agent->getInvoicePdf($stornoDocumentNumber)->toPdf();
             if (is_string($pdfContent) && $pdfContent !== '') {
                 $pdfPath = $this->pdfStore->save($stornoDocumentNumber, $pdfContent);
@@ -146,6 +147,25 @@ final class SzamlazzClientLive implements SzamlazzClient
         // as the primary oracle. Return null so the handler falls through
         // to a guarded-retry create attempt.
         return null;
+    }
+
+    /**
+     * Returns a configured SzamlaAgent instance with on-disk XML persistence
+     * disabled. We have our own audit trail (peoft_audit_log via auditSdkCall)
+     * so the SDK's default write-XML-to-`./xmls/`-directory behaviour is both
+     * redundant and brittle (silently fails if the directory isn't writable).
+     */
+    private function agent(): SzamlaAgent
+    {
+        $agent = SzamlaAgentAPI::create($this->apiKey);
+        $agent->setRequestXmlFileSave(false);
+        $agent->setResponseXmlFileSave(false);
+        // The SDK also persists the returned PDF to `./pdfs/` by default
+        // during generateInvoice. We fetch the PDF explicitly via getInvoicePdf
+        // and hand it to PdfStore, so the implicit save is both redundant and
+        // a failure mode (the target directory is usually not writable).
+        $agent->setPdfFileSave(false);
+        return $agent;
     }
 
     /**
