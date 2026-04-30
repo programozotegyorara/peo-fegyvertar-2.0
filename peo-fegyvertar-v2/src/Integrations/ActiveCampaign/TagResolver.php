@@ -70,7 +70,11 @@ final class TagResolver extends ApiClient
     private function lookupLive(string $tagName): ?int
     {
         $cfg = ($this->configFn)();
-        $url = rtrim($cfg['api_url'], '/') . '/tags?search=' . rawurlencode($tagName) . '&limit=5';
+        $base = rtrim($cfg['api_url'], '/');
+        if (!str_ends_with($base, '/api/3')) {
+            $base .= '/api/3';
+        }
+        $url = $base . '/tags?search=' . rawurlencode($tagName) . '&limit=5';
         try {
             $response = $this->request(
                 method: 'GET',
